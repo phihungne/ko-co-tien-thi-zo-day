@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Game Bắt Icon Full</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+    font-family: Arial, sans-serif;
+    height:100vh;
+    overflow:hidden;
+    background: linear-gradient(135deg, #ffd6e0, #ff99b3);
+    background-size: 400% 400%;
+    animation: gradientBG 10s ease infinite;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-start;
+}
+@keyframes gradientBG{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+}
+#loginDiv, #gameDiv{margin-top:20px; text-align:center;}
+#gameArea{
+    position:relative;
+    width:100%;
+    height:60vh;
+    overflow:hidden;
+    border:2px solid #ff99b3;
+    border-radius:15px;
+    margin-top:20px;
+}
+.icon{
+    position:absolute;
+    font-size:40px;
+    cursor:pointer;
+    user-select:none;
+}
+#scoreBox, #healthBox{
+    margin-top:15px;
+    text-align:center;
+    font-size:20px;
+}
+#healthBar{
+    width:200px;
+    height:25px;
+    border:2px solid #ff99b3;
+    border-radius:12px;
+    background:#fff;
+    margin:10px auto;
+    overflow:hidden;
+}
+#healthInner{
+    width:100%;
+    height:100%;
+    background:#ff4d6d;
+    transition:width 0.3s ease;
+}
+#shop{
+    margin-top:15px;
+}
+.shopItem{
+    border:1px solid #ff99b3;
+    border-radius:10px;
+    padding:5px;
+    margin:5px;
+    display:inline-block;
+    cursor:pointer;
+    background:#fff0f5;
+    transition:0.3s;
+}
+.shopItem:hover{transform:scale(1.05);}
+#signature{
+    position:fixed;
+    bottom:10px;
+    right:10px;
+    font-size:20px;
+    font-weight:bold;
+    color:#ff4d6d;
+    text-shadow: 0 0 5px #ff99b3, 0 0 10px #ff4d6d;
+    animation: glow 2s infinite alternate;
+}
+@keyframes glow{
+    0%{text-shadow: 0 0 5px #ff99b3, 0 0 10px #ff4d6d;}
+    100%{text-shadow: 0 0 20px #ff99b3, 0 0 30px #ff4d6d;}
+}
+button{
+    padding:8px 15px;
+    border:none;
+    border-radius:8px;
+    background:#ff5fa2;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.3s;
+}
+button:hover{transform:scale(1.05);}
+</style>
+</head>
+<body>
+
+<div id="loginDiv">
+<h2 style="color:#ff4d6d;">Nhập tên bạn để bắt đầu 🎮</h2>
+<input type="text" id="playerName" placeholder="Tên phải duy nhất" style="padding:10px; border-radius:10px; border:1px solid #ff99b3;">
+<button id="loginBtn">Vào Game</button>
+</div>
+
+<div id="gameDiv" style="display:none;">
+<h2 style="color:#ff4d6d;">Mini Game Bắt Icon 💖</h2>
+<div id="gameArea"></div>
+<div id="scoreBox">Điểm: 0</div>
+<div id="healthBox">
+    Máu:
+    <div id="healthBar">
+        <div id="healthInner"></div>
+    </div>
+</div>
+
+<div id="shop"><h3>Cửa hàng 🛒</h3></div>
+<button id="exchangeBtn">Đổi điểm lấy tiền mặt 💰</button>
+</div>
+
+<div id="signature">by Hùng 💖</div>
+
+<script>
+// ==== Firebase config ====
+const firebaseConfig = {
+    apiKey: "API_KEY_CỦA_BẠN",
+    authDomain: "PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://PROJECT_ID.firebaseio.com",
+    projectId: "PROJECT_ID",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ==== Biến game ====
+const loginDiv = document.getElementById("loginDiv");
+const gameDiv = document.getElementById("gameDiv");
+const loginBtn = document.getElementById("loginBtn");
+const playerNameInput = document.getElementById("playerName");
+
+const gameArea = document.getElementById("gameArea");
+const scoreBox = document.getElementById("scoreBox");
+const healthInner = document.getElementById("healthInner");
+const shopDiv = document.getElementById("shop");
+const exchangeBtn = document.getElementById("exchangeBtn");
+
+let playerName = "";
+let score = 0;
+let health = 3;
+let isPlaying = false;
+let gameInterval;
+
+// ==== Login & tránh trùng tên ====
+loginBtn.onclick = function(){
+    const name = playerNameInput.value.trim();
+    if(!name){alert("Nhập tên bạn nhé!"); return;}
+    db.ref("players/"+name).get().then(snap=>{
+        if(snap.exists()){
+            alert("Tên này đã có người dùng! Chọn tên khác nhé 😎");
+        }else{
+            playerName = name;
+            db.ref("players/"+playerName).set({score:0, health:3, items:[]});
+            startGame();
+        }
+    });
+}
+
+// ==== Bắt đầu game ====
+function startGame(){
+    loginDiv.style.display="none";
+    gameDiv.style.display="block";
+    score = 0; health=3;
+    scoreBox.textContent = "Điểm: 0";
+    healthInner.style.width="100%";
+    isPlaying = true;
+    gameInterval = setInterval(createIcon, 800);
+    initShop();
+}
+
+// ==== Tạo icon rơi ====
+function createIcon(){
+    if(!isPlaying) return;
+    const icon = document.createElement("div");
+    icon.classList.add("icon");
+    const icons = ["❤️","⭐","💖"];
+    icon.textContent = icons[Math.floor(Math.random()*icons.length)];
+    icon.style.left = Math.random()*(gameArea.clientWidth-40) + "px";
+    icon.style.top = "-40px";
+    gameArea.appendChild(icon);
+
+    let fallSpeed = 2 + Math.random()*3;
+    function fall(){
+        if(!isPlaying){icon.remove(); return;}
+        let top = parseFloat(icon.style.top);
+        if(top > gameArea.clientHeight){icon.remove(); loseHealth(); return;}
+        icon.style.top = top + fallSpeed + "px";
+        requestAnimationFrame(fall);
+    }
+    fall();
+
+    icon.onclick = function(e){
+        if(!isPlaying) return;
+        score++;
+        scoreBox.textContent = "Điểm: "+score;
+        createFlyingIcon(icon.textContent, icon.offsetLeft, icon.offsetTop);
+        icon.remove();
+        e.stopPropagation();
+    }
+}
+
+function createFlyingIcon(char,x,y){
+    const fly = document.createElement("div");
+    fly.textContent = char;
+    fly.style.position="absolute";
+    fly.style.left=x+"px";
+    fly.style.top=y+"px";
+    fly.style.fontSize="30px";
+    fly.style.transition="all 0.8s ease-out";
+    fly.style.zIndex=1000;
+    document.body.appendChild(fly);
+    setTimeout(()=>{
+        fly.style.top=(y-80)+"px";
+        fly.style.opacity=0;
+    },10);
+    setTimeout(()=>fly.remove(),800);
+}
+
+function loseHealth(){
+    health--;
+    healthInner.style.width=(health/3*100)+"%";
+    if(health<=0) endGame();
+}
+
+function endGame(){
+    isPlaying=false;
+    clearInterval(gameInterval);
+    alert("Game kết thúc! Bạn được "+score+" điểm.");
+    db.ref("players/"+playerName).update({score:score, health:health});
+}
+
+// ==== Cửa hàng ====
+const shopItems = [
+    {name:"10k điểm", cost:10000, effect:()=>{score+=10000; updateScore();}},
+    {name:"20k điểm", cost:20000, effect:()=>{score+=20000; updateScore();}},
+    {name:"Icon mới", cost:100, effect:()=>{alert("Icon mới cực cute!");}},
+    {name:"Hồi 1 mạng máu", cost:50, effect:()=>{health=Math.min(3,health+1); healthInner.style.width=(health/3*100)+"%";}},
+    {name:"Tốc độ icon chậm", cost:80, effect:()=>{alert("Icon rơi chậm hơn 50% trong 10s!");}},
+    {name:"Điểm x2", cost:150, effect:()=>{alert("Điểm x2 trong 10s!");}},
+    {name:"Icon màu neon", cost:120, effect:()=>{alert("Icon màu neon + glow!");}},
+    {name:"Confetti khi click", cost:60, effect:()=>{alert("Confetti cute!");}},
+    {name:"Icon lửa bay", cost:200, effect:()=>{alert("Icon bay kèm lửa!");}},
+    {name:"Bonus 30 giây chơi", cost:100, effect:()=>{alert("Thêm 30 giây chơi!");}}
+];
+
+function initShop(){
+    shopDiv.innerHTML="<h3>Cửa hàng 🛒</h3>";
+    shopItems.forEach((item,i)=>{
+        const div=document.createElement("div");
+        div.classList.add("shopItem");
+        div.textContent=item.name+" - "+item.cost+" điểm";
+        div.onclick=()=>{
+            if(score>=item.cost){
+                score-=item.cost;
+                updateScore();
+                item.effect();
+            }else{
+                alert("Không đủ điểm 😢");
+            }
+        };
+        shopDiv.appendChild(div);
+    });
+}
+
+function updateScore(){
+    scoreBox.textContent="Điểm: "+score;
+    db.ref("players/"+playerName).update({score:score});
+}
+
+// ==== Đổi tiền mặt ảo ====
+exchangeBtn.onclick = function(){
+    if(score>=10000){
+        let money = Math.floor(score/10000)*10000;
+        score -= money;
+        updateScore();
+        alert("Bạn vừa đổi "+money+" điểm nhận "+money+" VNĐ tiền mặt! Liên hệ Hùng để nhận nhé 💖");
+    }else{
+        alert("Chưa đủ điểm để đổi tiền mặt 😢");
+    }
+}
+</script>
+
+</body>
+</html>
